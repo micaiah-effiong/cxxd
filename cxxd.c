@@ -2,13 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-int min(int a, int b) {
-  if (a < b) {
-    return a;
-  }
-
-  return b;
-}
+int min(int a, int b);
 
 int main(int argc, char *argv[]) {
   char *argv_filename = argv[1];
@@ -113,4 +107,12 @@ int main(int argc, char *argv[]) {
   }
 
   return 0;
+}
+
+int min(int a, int b) {
+  if (a < b) {
+    return a;
+  }
+
+  return b;
 }
