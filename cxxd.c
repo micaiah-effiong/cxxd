@@ -96,7 +96,11 @@ int main(int argc, char *argv[]) {
 
       for (int64_t i = 0; i < diff; i++) {
         sprintf(text + strlen(text), "%c", '.');
-        sprintf(output + strlen(output), "%s", "   ");
+        sprintf(output + strlen(output), "%s", "  ");
+
+        if ((diff - i) % 2 != 0) {
+          strcat(output, " ");
+        }
       }
     }
 
