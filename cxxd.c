@@ -1,13 +1,41 @@
+#include <linux/limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 int min(int a, int b);
+char *hex_dump(FILE *file);
 
 int main(int argc, char *argv[]) {
   char *argv_filename = argv[1];
-  char *filepath = realpath(argv_filename, NULL);
 
+  int opt;
+  FILE *ouput_file = stdout;
+  char *output_filepath = NULL; // = (char *)malloc(PATH_MAX);
+
+  while ((opt = getopt(argc, argv, "o:s:")) != -1) {
+
+    switch (opt) {
+    case 'o':
+      output_filepath = realpath(optarg, NULL);
+
+      if (output_filepath == NULL) {
+        printf("Could not resolve file path\n");
+        free(output_filepath);
+        exit(1);
+        return 1;
+      }
+
+      ouput_file = fopen(output_filepath, "w");
+      free(output_filepath);
+      break;
+    default:
+      break;
+    }
+  }
+
+  char *filepath = realpath(argv_filename, NULL);
   if (filepath == NULL) {
     printf("Could not resolve file path\n");
     exit(1);
@@ -15,6 +43,7 @@ int main(int argc, char *argv[]) {
   }
 
   FILE *file = fopen(filepath, "r");
+  free(filepath);
 
   if (!file) {
     printf("could not get file");
@@ -22,45 +51,60 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  int length;
+  char *result = hex_dump(file);
+
+  fwrite(result, 1, strlen(result), ouput_file);
+  fclose(ouput_file);
+
+  free(result);
+
+  return 0;
+}
+
+char *hex_dump(FILE *file) {
 
   fseek(file, 0, SEEK_END);
-  length = ftell(file);
+  int length = ftell(file);
 
   fseek(file, 0, SEEK_SET);
 
-  // char text[length];
-  int hex_buffer[length];
-  int chunk;
-  int hex_index = 0;
-  while ((chunk = fgetc(file)) != EOF) {
-    hex_buffer[hex_index] = chunk;
-    hex_index++;
-  }
+  char *data = (char *)malloc(length);
+  // char data[length];
+  fread(data, 1, length, file);
+  data[length] = '\0';
 
   fclose(file);
 
   int offset = 0;
   int offset_size = 16;
-  char output_text[length + 100]; // buffer_length + 100(meta data)
-  sprintf(output_text + strlen(output_text),
-          "filepath: %s\nlength: %d bytes\n\n", filepath, length);
+  char *output_text = (char *)malloc((length * length) * sizeof(char *));
+
+  if (output_text == NULL) {
+    printf("Could not allocate memory for");
+    exit(0);
+  }
+
+  // printf(">length: %ld, start: %d, end %d\n", length, start, end);
+  // printf("> length: %d\n> text: %s\n", length, output_text);
+
+  /* sprintf(output_text + strlen(output_text),
+          "filepath: %s\nlength: %d bytes\n\n", filepath, length); */
 
   for (int i = 0; i < length; i += offset_size) {
     int offset_end = min(offset + offset_size, length);
 
     // 8 + 43 + 16
-    char text[100];
-    char output[100];
+    char text[17];
+    char output[44];
 
     for (int j = offset; j < offset_end; j++) {
-      int val = hex_buffer[j];
+      int val = data[j];
       int text_pos = j - offset;
 
-      if (val > 31 && val < 128) {
+      if (val >= 32 && val <= 126) {
         text[text_pos] = val;
       } else {
-        text[text_pos] = 46;
+        text[text_pos] = '.';
       }
 
       sprintf(output + strlen(output), "%02x", (char)val);
@@ -69,6 +113,8 @@ int main(int argc, char *argv[]) {
       if (j % 2 != 0) {
         strcat(output, " ");
       }
+      output[43] = '\0';
+      text[16] = '\0';
     }
 
     int chunk_size = offset_end - offset;
@@ -87,6 +133,8 @@ int main(int argc, char *argv[]) {
       }
     }
 
+    // printf("out_text %s\n", output_text);
+
     sprintf(output_text + strlen(output_text), "%08x: %s %s\n", (int)offset,
             output, text);
 
@@ -95,9 +143,9 @@ int main(int argc, char *argv[]) {
     offset += 16;
   }
 
-  printf("%s", output_text);
+  sprintf(output_text + strlen(output_text), "%c", '\0');
 
-  return 0;
+  return output_text;
 }
 
 int min(int a, int b) {
