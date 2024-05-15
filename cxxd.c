@@ -5,7 +5,7 @@
 #include <unistd.h>
 
 int min(int a, int b);
-char *hex_dump(FILE *file);
+void hex_dump(FILE *file, FILE *output);
 
 struct HexFileData {
   char *data;
@@ -65,36 +65,36 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  char *result = hex_dump(file);
-
   if (output_filepath != NULL && strlen(output_filepath) > 0) {
     ouput_file = fopen(output_filepath, "w");
     free(output_filepath);
     output_filepath = NULL;
   }
+  hex_dump(file, ouput_file);
 
-  fwrite(result, 1, strlen(result), ouput_file);
+  // fwrite(result, 1, strlen(result), ouput_file);
   fclose(ouput_file);
   ouput_file = NULL;
 
-  free(result);
-  result = NULL;
+  // free(result);
+  // result = NULL;
 
   return 0;
 }
 
-char *hex_dump(FILE *file) {
+void hex_dump(FILE *file, FILE *output_file) {
   struct HexFileData hex_file = read_file(file);
 
   int offset = 0;
   int offset_size = 16;
   int output_size = (hex_file.length * hex_file.length) * sizeof(char *);
-  char *output_text = (char *)malloc(output_size);
+  // char *output_text = (char *)malloc(output_size);
+  char output_text[100] = "";
 
-  if (output_text == NULL) {
-    printf("Could not allocate memory for");
-    exit(0);
-  }
+  // if (output_text == NULL) {
+  //   printf("Could not allocate memory for");
+  //   exit(0);
+  // }
 
   // printf(">length: %ld, start: %d, end %d\n", length, start, end);
   // printf("> length: %d\n> text: %s\n", length, output_text);
@@ -106,8 +106,8 @@ char *hex_dump(FILE *file) {
     int offset_end = min(offset + offset_size, hex_file.length);
 
     // 8 + 43 + 16
-    char text[17];
-    char output[44];
+    char text[100];
+    char output[100];
 
     for (int j = offset; j < offset_end; j++) {
       int val = hex_file.data[j];
@@ -147,19 +147,21 @@ char *hex_dump(FILE *file) {
 
     // printf("out_text %s\n", output_text);
 
-    sprintf(output_text + strlen(output_text), "%08x: %s %s\n", (int)offset,
-            output, text);
+    sprintf(output_text + strlen(output_text), "%08x: %s %s\n", offset, output,
+            text);
 
-    memset(output, 0, sizeof(output));
-    memset(text, 0, sizeof(text));
+    fwrite(output_text, 1, strlen(output_text), output_file);
+
+    memset(output_text, 0, strlen(output_text));
+    memset(output, 0, strlen(output));
+    memset(text, 0, strlen(text));
     offset += 16;
   }
 
-  sprintf(output_text + strlen(output_text), "%c", '\0');
+  // sprintf(output_text + strlen(output_text), "%c", '\0');
+
   free(hex_file.data);
   hex_file.data = NULL;
-
-  return output_text;
 }
 
 struct HexFileData read_file(FILE *file) {
