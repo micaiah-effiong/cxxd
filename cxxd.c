@@ -1,17 +1,15 @@
 #include <linux/limits.h>
+#include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 int min(int a, int b);
-void hex_dump(FILE *file, FILE *output);
 
-struct HexFileData {
-  char *data;
-  int length;
-};
-struct HexFileData read_file(FILE *file);
+// read and convert values to hex dump
+void rdump_hex(FILE *fp, FILE *output_file);
 
 int main(int argc, char *argv[]) {
   char *argv_filename = argv[1];
@@ -70,120 +68,110 @@ int main(int argc, char *argv[]) {
     free(output_filepath);
     output_filepath = NULL;
   }
-  hex_dump(file, ouput_file);
+  rdump_hex(file, ouput_file);
 
-  // fwrite(result, 1, strlen(result), ouput_file);
   fclose(ouput_file);
   ouput_file = NULL;
-
-  // free(result);
-  // result = NULL;
 
   return 0;
 }
 
-void hex_dump(FILE *file, FILE *output_file) {
-  struct HexFileData hex_file = read_file(file);
+void hex_dump(int offset, char buff[17], bool is_final, FILE *output_file) {
+  int buff_size = is_final ? strlen(buff) : 16; // strlen(buff);
 
-  int offset = 0;
-  int offset_size = 16;
-  int output_size = (hex_file.length * hex_file.length) * sizeof(char *);
-  // char *output_text = (char *)malloc(output_size);
-  char output_text[100] = "";
+  // 8 + 43 + 16
+  // offset = 8
+  // hex column = 43 (including ":" and whitespaces)
+  // text = 16
+  // extra room for null byte
 
-  // if (output_text == NULL) {
-  //   printf("Could not allocate memory for");
-  //   exit(0);
-  // }
+  char text[16 + 1] = "";
+  char output[43 + 1] = "";
+  char output_text[67 + 1 + 1] = ""; // text + newline + null byte
 
-  // printf(">length: %ld, start: %d, end %d\n", length, start, end);
-  // printf("> length: %d\n> text: %s\n", length, output_text);
+  for (int j = 0; j < buff_size; j++) {
+    int val = buff[j];
+    int text_pos = j;
 
-  /* sprintf(output_text + strlen(output_text),
-          "filepath: %s\nlength: %d bytes\n\n", filepath, length); */
+    if (val >= 32 && val <= 126) {
+      text[text_pos] = val;
+    } else {
+      text[text_pos] = '.';
+    }
 
-  for (int i = 0; i < hex_file.length; i += offset_size) {
-    int offset_end = min(offset + offset_size, hex_file.length);
+    if ((int)val < 0) {
+      val = 256 + val;
+    }
 
-    // 8 + 43 + 16
-    char text[100];
-    char output[100];
+    sprintf(output + strlen(output), "%02x", (int)val);
+    // sprintf(output + strlen(output), "%d", (char)val);
 
-    for (int j = offset; j < offset_end; j++) {
-      int val = hex_file.data[j];
-      int text_pos = j - offset;
+    if (j % 2 != 0) {
+      strcat(output, " ");
+    }
+    output[43] = '\0';
+    text[16] = '\0';
+  }
 
-      if (val >= 32 && val <= 126) {
-        text[text_pos] = val;
-      } else {
-        text[text_pos] = '.';
-      }
+  int chunk_size = is_final ? strlen(buff) : 16; // strlen(buff);
 
-      sprintf(output + strlen(output), "%02x", (char)val);
-      // printf("j: %d text: %s\n", j, output);
+  if (chunk_size % 16 != 0) {
+    int diff = 16 - chunk_size;
+    for (int i = 0; i < diff; i++) {
+      sprintf(output + strlen(output), "%s", "  ");
 
-      if (j % 2 != 0) {
+      if ((diff - i) % 2 != 0) {
         strcat(output, " ");
       }
-      output[43] = '\0';
-      text[16] = '\0';
     }
-
-    int chunk_size = offset_end - offset;
-    // printf("chunc size %d\n", chunk_size);
-
-    if (chunk_size % offset_size != 0) {
-      int diff = offset_size - chunk_size;
-
-      for (int i = 0; i < diff; i++) {
-        // sprintf(text + strlen(text), "%c", '.');
-        sprintf(output + strlen(output), "%s", "  ");
-
-        if ((diff - i) % 2 != 0) {
-          strcat(output, " ");
-        }
-      }
-    }
-
-    // printf("out_text %s\n", output_text);
-
-    sprintf(output_text + strlen(output_text), "%08x: %s %s\n", offset, output,
-            text);
-
-    fwrite(output_text, 1, strlen(output_text), output_file);
-
-    memset(output_text, 0, strlen(output_text));
-    memset(output, 0, strlen(output));
-    memset(text, 0, strlen(text));
-    offset += 16;
   }
 
-  // sprintf(output_text + strlen(output_text), "%c", '\0');
+  sprintf(output_text + strlen(output_text), "%08x: %s %s\n", offset, output,
+          text);
+  output_text[67 + 1] = '\0';
 
-  free(hex_file.data);
-  hex_file.data = NULL;
+  fwrite(output_text, 1, strlen(output_text), output_file);
+
+  // memset(output_text, 0, strlen(output_text));
+  // memset(output, 0, strlen(output));
+  // memset(text, 0, strlen(text));
 }
 
-struct HexFileData read_file(FILE *file) {
-  fseek(file, 0, SEEK_END);
-  int length = ftell(file);
-  fseek(file, 0, SEEK_SET);
+void rdump_hex(FILE *fp, FILE *output_file) {
+  char buff[17] = "";
+  int count = 0;
+  int offset = 0;
+  int s;
+  bool is_lastline = false;
 
-  char *data = (char *)malloc(length);
+  fseek(fp, 0, SEEK_END);
+  int length = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+  int hex_lines = (int)ceil((float)length / 16);
 
-  fread(data, 1, length, file);
-  data[length] = '\0';
-  fclose(file);
-  // file = NULL;
+  while ((s = fgetc(fp)) != EOF) {
+    buff[count % 16] = s;
+    is_lastline = (offset + 1) == hex_lines;
 
-  struct HexFileData result = {data, length};
-  return result;
-}
+    if (count > 0 && count % 16 == 15) {
+      buff[strlen(buff)] = '\0';
 
-int min(int a, int b) {
-  if (a < b) {
-    return a;
+      hex_dump(offset * 16, buff, is_lastline, output_file);
+
+      memset(buff, 0, 16);
+      offset += 1;
+    }
+
+    // if (count > 16 * 5) {
+    //   break;
+    // }
+    count++;
   }
 
-  return b;
+  if (strlen(buff) != 0) {
+    buff[strlen(buff)] = '\0';
+    hex_dump(offset * 16, buff, is_lastline, output_file);
+  }
+
+  fclose(fp);
 }
