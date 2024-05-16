@@ -1,5 +1,5 @@
 build: create-dist
-	gcc -o ./dist/cxxd cxxd.c
+	$(CC) -o ./dist/cxxd cxxd.c -lm
 
 create-dist:
 	mkdir dist -p
