@@ -1,18 +1,18 @@
+#include <getopt.h>
 #include <linux/limits.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-
-int min(int a, int b);
 
 // read and convert values to hex dump
 void rdump_hex(FILE *fp, FILE *output_file);
+void print_usage();
 
 int main(int argc, char *argv[]) {
   char *argv_filename = argv[1];
+  // printf("file: %s\n", argv_filename);
 
   int opt;
   FILE *ouput_file = stdout;
@@ -24,16 +24,36 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  while ((opt = getopt(argc, argv, "o:")) != -1) {
+  static struct option long_options[] = {{"help", no_argument, 0, 0},
+                                         {0, 0, 0, 0}};
+
+  int opt_index = 0;
+  while ((opt = getopt_long(argc, argv, "o:hv", long_options, &opt_index)) !=
+         -1) {
 
     switch (opt) {
+    case 0:
+      // printf("arg: %s, %s\n", optarg, long_options[opt_index].name);
+      // printf("val: %s\n", long_options[opt_index].val);
+      if (strcmp(long_options[opt_index].name, "help") == 0) {
+        print_usage();
+        exit(EXIT_SUCCESS);
+      }
+      break;
+    case 'h':
+      print_usage();
+      exit(EXIT_SUCCESS);
+      break;
+    case 'v':
+      printf("cxxd 2024-5-17 by Micah Effiong.\n");
+      exit(EXIT_SUCCESS);
+      break;
     case 'o':
-
       // TODO: handle realpath outside loop
       realpath(optarg, output_filepath);
 
       if (output_filepath == NULL) {
-        printf("Could not resolve file path\n");
+        fprintf(stderr, "Could not resolve file path\n");
         free(output_filepath);
         output_filepath = NULL;
         exit(1);
@@ -175,3 +195,13 @@ void rdump_hex(FILE *fp, FILE *output_file) {
 
   fclose(fp);
 }
+
+const char *usage = "\
+Usage:\n\
+    cxxd [options] in-file\n\
+Options:\n\
+    -o          path to output file. Default print to stdout.\n\
+    -h --help   display this help text and exit.\n\
+    -v          display version and exit.\n\
+";
+void print_usage() { printf("%s", usage); }
