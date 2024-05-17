@@ -66,6 +66,39 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  if (argv[optind] == NULL) {
+    printf("Missing required argument(s)\n");
+    exit(0);
+    return 0;
+  }
+
+  while (optind < argc) {
+    // printf("non-opt: %s %d\n", argv[optind], optind);
+    switch (optind) {
+    case 1:
+      argv_filename = argv[optind];
+      break;
+    case 2:
+      if (output_filepath != NULL && strlen(output_filepath) <= 0 &&
+          argv[optind] != NULL) {
+        realpath(argv[optind], output_filepath);
+
+        if (output_filepath == NULL) {
+          fprintf(stderr, "Could not resolve file path\n");
+          free(output_filepath);
+          output_filepath = NULL;
+          exit(1);
+          return 1;
+        }
+      }
+      break;
+    default:
+      break;
+    }
+
+    optind++;
+  }
+
   char *filepath = realpath(argv_filename, NULL);
   if (filepath == NULL) {
     printf("Could not resolve file path\n");
